@@ -62,13 +62,31 @@ let cachedPort: number | null = null;
 let cachedHost: string | null = null;
 
 export function getWorkerPort(): number {
-  if (cachedPort !== null) {
-    return cachedPort;
+  // On Windows, check PID file for actual bound port (handles port-recovery
+  // where worker fell back to a different port due to zombie sockets)
+  if (process.platform === 'win32') {
+    try {
+      const pidFilePath = path.join(DATA_DIR, 'worker.pid');
+      if (!existsSync(pidFilePath)) throw new Error('no pid file');
+      const pidInfo = JSON.parse(readFileSync(pidFilePath, 'utf-8'));
+      const pidAlive = (() => { try { process.kill(pidInfo.pid, 0); return true; } catch { return false; } })();
+      if (pidInfo?.port && pidAlive) {
+        cachedPort = pidInfo.port;
+        return pidInfo.port;
+      }
+    } catch {
+      // Fall through to settings-based port
+    }
   }
 
+  // Standard path: read from settings
+  if (cachedPort !== null) return cachedPort;
   const settingsPath = path.join(SettingsDefaultsManager.get('CLAUDE_MEM_DATA_DIR'), 'settings.json');
   const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
   cachedPort = parseInt(settings.CLAUDE_MEM_WORKER_PORT, 10);
+  if (isNaN(cachedPort)) {
+    cachedPort = SettingsDefaultsManager.getInt('CLAUDE_MEM_WORKER_PORT');
+  }
   return cachedPort;
 }
 
