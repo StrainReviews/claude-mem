@@ -283,9 +283,10 @@ export class WorkerService implements WorkerRef {
 
     await this.server.listen(port, host);
 
+    const actualPort = this.server.getBoundPort() ?? port;
     writePidFile({
       pid: process.pid,
-      port,
+      port: actualPort,
       startedAt: new Date().toISOString()
     });
 
@@ -295,7 +296,7 @@ export class WorkerService implements WorkerRef {
       startedAt: new Date().toISOString()
     });
 
-    logger.info('SYSTEM', 'Worker started', { host, port, pid: process.pid });
+    logger.info('SYSTEM', 'Worker started', { host, port: actualPort, pid: process.pid });
 
     this.initializeBackground().catch((error) => {
       logger.error('SYSTEM', 'Background initialization failed', {}, error as Error);
