@@ -30,6 +30,17 @@ export class PendingMessageStore {
   }
 
   enqueue(sessionDbId: number, contentSessionId: string, message: PendingMessage): number {
+    const session = this.db.prepare(
+      `SELECT status FROM sdk_sessions WHERE id = ?`
+    ).get(sessionDbId) as { status: string } | null;
+
+    if (session?.status === 'completed') {
+      logger.warn('QUEUE', `SKIP_COMPLETED | sessionDbId=${sessionDbId} | type=${message.type} | tool=${message.tool_name || 'none'}`, {
+        sessionId: sessionDbId
+      });
+      return 0;
+    }
+
     const now = Date.now();
     const stmt = this.db.prepare(`
       INSERT OR IGNORE INTO pending_messages (

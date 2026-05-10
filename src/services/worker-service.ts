@@ -365,6 +365,17 @@ export class WorkerService implements WorkerRef {
         logger.info('SYSTEM', `Startup orphan sweep reclaimed ${sweepResult.changes} processing rows`);
       }
 
+      const completedOrphanResult = this.dbManager.getSessionStore().db.prepare(`
+        DELETE FROM pending_messages
+         WHERE session_db_id IN (
+           SELECT id FROM sdk_sessions WHERE status = 'completed'
+         )
+      `).run();
+
+      if (completedOrphanResult.changes > 0) {
+        logger.info('SYSTEM', `Startup completed-session orphan cleanup removed ${completedOrphanResult.changes} rows`);
+      }
+
       runOneTimeV12_4_3Cleanup();
 
       logger.info('WORKER', 'Initializing search services...');
