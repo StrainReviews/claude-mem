@@ -417,11 +417,20 @@ describe('Worker API Endpoints Integration', () => {
 
       await server.listen(testPort, '127.0.0.1');
 
-      await expect(server2.listen(testPort, '127.0.0.1')).rejects.toThrow();
+      // Fork-local Windows fix: a port conflict no longer rejects; listen()
+      // falls back to the next free port so the worker still binds even when a
+      // zombie socket is holding the primary port.
+      await server2.listen(testPort, '127.0.0.1');
 
       const httpServer2 = server2.getHttpServer();
-      if (httpServer2) {
-        expect(httpServer2.listening).toBe(false);
+      expect(httpServer2).not.toBeNull();
+      expect(httpServer2!.listening).toBe(true);
+      expect(server2.getBoundPort()).toBeGreaterThan(testPort);
+
+      try {
+        await server2.close();
+      } catch {
+        // Ignore cleanup errors
       }
     });
 
