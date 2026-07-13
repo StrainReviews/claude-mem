@@ -1,10 +1,10 @@
 {
-  "name": "thedotmack",
+  "name": "strainreviews",
   "owner": {
-    "name": "Alex Newman"
+    "name": "StrainReviews (fork of thedotmack)"
   },
   "metadata": {
-    "description": "Plugins by Alex Newman (thedotmack)"
+    "description": "StrainReviews fork of claude-mem — includes Windows tree-sitter.exe fix"
   },
   "plugins": [
     {
