@@ -119,6 +119,7 @@ export function applySecurityHeaders(res: Response): void {
 export class Server {
   readonly app: Application;
   private server: http.Server | null = null;
+  private boundPort: number | null = null;
   private readonly options: ServerOptions;
   private readonly startTime: number = Date.now();
 
@@ -137,12 +138,49 @@ export class Server {
     return this.server;
   }
 
+  getBoundPort(): number | null {
+    return this.boundPort;
+  }
+
   async listen(port: number, host: string): Promise<void> {
+    // Windows-Fix (fork-local): zombie sockets can hold the primary port even
+    // after the previous worker exited. Try a small range of fallback ports so
+    // the worker still binds; getBoundPort() exposes the actual port so the PID
+    // file records where it really listens.
+    const MAX_PORT_ATTEMPTS = 10;
+
+    for (let attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt++) {
+      const tryPort = port + attempt;
+      try {
+        await this.tryListen(tryPort, host);
+        this.boundPort = tryPort;
+        if (attempt > 0) {
+          logger.warn('SYSTEM', `Primary port ${port} blocked (zombie socket?), bound to fallback port ${tryPort}`, { originalPort: port, actualPort: tryPort, attempt });
+        }
+        return;
+      } catch (err: unknown) {
+        const isAddrInUse = err instanceof Error && (
+          (err as NodeJS.ErrnoException).code === 'EADDRINUSE' ||
+          /port.*in use|address.*in use/i.test(err.message)
+        );
+        if (!isAddrInUse || attempt === MAX_PORT_ATTEMPTS - 1) {
+          throw err;
+        }
+        logger.debug('SYSTEM', `Port ${tryPort} blocked, trying ${tryPort + 1}`, { attempt });
+      }
+    }
+  }
+
+  /**
+   * Attempt to bind the HTTP server to a single port.
+   */
+  private tryListen(port: number, host: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const server = http.createServer(this.app);
       this.server = server;
       const onError = (err: Error) => {
         server.off('listening', onListening);
+        this.server = null;
         reject(err);
       };
       const onListening = () => {

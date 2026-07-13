@@ -124,6 +124,24 @@ function readSettingsBackedTimeout(
 }
 
 export function getWorkerPort(): number {
+  // Windows-Fix (fork-local): check the PID file for the ACTUAL bound port.
+  // The worker may have fallen back to a different port when the primary was
+  // held by a zombie socket (see Server.listen port-increment recovery).
+  if (process.platform === 'win32') {
+    try {
+      const pidFilePath = path.join(DATA_DIR, 'worker.pid');
+      if (!existsSync(pidFilePath)) throw new Error('no pid file');
+      const pidInfo = JSON.parse(readFileSync(pidFilePath, 'utf-8'));
+      const pidAlive = (() => { try { process.kill(pidInfo.pid, 0); return true; } catch { return false; } })();
+      if (pidInfo?.port && pidAlive) {
+        cachedPort = pidInfo.port;
+        return pidInfo.port;
+      }
+    } catch {
+      // Fall through to settings-based port
+    }
+  }
+
   if (cachedPort !== null) {
     return cachedPort;
   }

@@ -359,7 +359,11 @@ function getTreeSitterBin(): string {
 
   try {
     const pkgPath = _require.resolve("tree-sitter-cli/package.json");
-    const binPath = join(dirname(pkgPath), "tree-sitter");
+    // Windows-Fix (fork-local): the CLI binary is named tree-sitter.exe on
+    // Windows; without the extension existsSync() misses it and parsing yields
+    // 0 symbols for every language.
+    const basePath = join(dirname(pkgPath), "tree-sitter");
+    const binPath = process.platform === "win32" ? basePath + ".exe" : basePath;
     if (existsSync(binPath)) {
       cachedBinPath = binPath;
       return binPath;
