@@ -416,13 +416,9 @@ export class WorkerService implements WorkerRef {
 
     await this.server.listen(port, host);
 
-    // Windows-Fix (fork-local): the server may have bound a fallback port when
-    // the primary was held by a zombie socket. Record the ACTUAL bound port so
-    // getWorkerPort() can recover it from the PID file.
-    const actualPort = this.server.getBoundPort() ?? port;
     writePidFile({
       pid: process.pid,
-      port: actualPort,
+      port,
       startedAt: new Date().toISOString()
     });
 
@@ -432,7 +428,7 @@ export class WorkerService implements WorkerRef {
       startedAt: new Date().toISOString()
     });
 
-    logger.info('SYSTEM', 'Worker started', { host, port: actualPort, pid: process.pid });
+    logger.info('SYSTEM', 'Worker started', { host, port, pid: process.pid });
     // worker_started telemetry fires at the end of initializeBackground, once
     // the DB is up: that lets the event carry the install's IDE (read from
     // session history) as a person property, so IDE-level DAU/retention

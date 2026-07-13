@@ -110,7 +110,7 @@ describe('Server', () => {
       expect(httpServer!.listening).toBe(true);
     });
 
-    it('should bind to a fallback port when the primary port is in use (Windows zombie-socket fork fix)', async () => {
+    it('should reject if port is already in use', async () => {
       server = new Server(mockOptions);
       const server2 = new Server(mockOptions);
 
@@ -118,20 +118,11 @@ describe('Server', () => {
 
       await server.listen(testPort, '127.0.0.1');
 
-      // Fork-local Windows fix: instead of rejecting on EADDRINUSE, listen()
-      // walks a small range of fallback ports so the worker still binds even
-      // when a zombie socket is holding the primary port.
-      await server2.listen(testPort, '127.0.0.1');
+      await expect(server2.listen(testPort, '127.0.0.1')).rejects.toThrow();
 
       const httpServer = server2.getHttpServer();
-      expect(httpServer).not.toBeNull();
-      expect(httpServer!.listening).toBe(true);
-      expect(server2.getBoundPort()).toBeGreaterThan(testPort);
-
-      try {
-        await server2.close();
-      } catch {
-        // Ignore errors on cleanup
+      if (httpServer) {
+        expect(httpServer.listening).toBe(false);
       }
     });
   });
